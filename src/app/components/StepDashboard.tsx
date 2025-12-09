@@ -8,13 +8,13 @@ import {
 import { Download, TrendingUp, DollarSign, Loader2 } from 'lucide-react'
 import Papa from 'papaparse'
 
-// === 修复点 1: 将非核心字段设为可选 (?) ===
+// 修复类型定义
 type KeywordData = {
   term: string
   search_volume: number
   competition: number
-  pc_volume?: number      // 变更为可选
-  mobile_volume?: number  // 变更为可选
+  pc_volume?: number
+  mobile_volume?: number
   blue_ocean_score?: number
 }
 
@@ -44,28 +44,29 @@ export default function StepDashboard({ projectId, onNext }: { projectId: string
     setTotalCount(count || 0)
 
     // 2. 获取“蓝海暴利榜” (Top 100)
+    // 这里我们先按流量取前200，再在前端精细排序，展示最好的100个
     const { data: topData } = await supabase
       .from('keywords')
       .select('term, search_volume, competition, pc_volume, mobile_volume')
       .eq('project_id', projectId)
       .neq('status', 'trash')
       .order('search_volume', { ascending: false })
-      .limit(100)
+      .limit(200)
 
     if (topData) {
       const scoredData: KeywordData[] = topData.map((k: any) => ({
         ...k,
         blue_ocean_score: Math.round(k.search_volume / (k.competition + 1))
       })).sort((a, b) => (b.blue_ocean_score || 0) - (a.blue_ocean_score || 0))
+      .slice(0, 100) // 只取前100
       
       setTopKeywords(scoredData)
     }
 
     // 3. 获取散点图数据
-    // === 修复点 2: 这里我们多查几个字段，或者依赖上面的类型定义变为可选 ===
     const { data: chartData } = await supabase
       .from('keywords')
-      .select('term, search_volume, competition') // 这里没查 pc_volume 也没事了，因为类型里是可选的
+      .select('term, search_volume, competition')
       .eq('project_id', projectId)
       .neq('status', 'trash')
       .lt('competition', 50)
@@ -77,31 +78,49 @@ export default function StepDashboard({ projectId, onNext }: { projectId: string
     setLoading(false)
   }
 
-  // 循环分页导出
+  // === 核心升级：自定义字段导出 ===
   const handleExport = async () => {
     setExporting(true)
     setExportProgress('准备下载...')
     
     const BATCH_SIZE = 1000
-    let allRows: any[] = []
+    let finalRows: any[] = [] // 最终要导出的数据容器
     let from = 0
     let hasMore = true
+    let rankCounter = 1 // 排名计数器
 
     try {
       while (hasMore) {
-        setExportProgress(`正在拉取第 ${from} - ${from + BATCH_SIZE} 行...`)
+        setExportProgress(`正在拉取并计算第 ${from} - ${from + BATCH_SIZE} 行...`)
         
+        // 1.以此拉取原始数据
         const { data, error } = await supabase
           .from('keywords')
-          .select('关键词:term, 总流量:search_volume, 竞争度:competition, PC流量:pc_volume, 移动流量:mobile_volume')
+          .select('term, search_volume, competition, pc_volume, mobile_volume') // 还是拉取原始字段
           .eq('project_id', projectId)
           .neq('status', 'trash')
+          .order('search_volume', { ascending: false }) // 导出时默认按“总流量”倒序，这最符合直觉
           .range(from, from + BATCH_SIZE - 1)
 
         if (error) throw error
 
         if (data && data.length > 0) {
-          allRows = allRows.concat(data)
+          // 2. 数据转换 (Data Mapping) - 这一步实现了你的需求
+          const formattedBatch = data.map(row => {
+            const score = Math.round(row.search_volume / (row.competition + 1))
+            return {
+              '排名': rankCounter++,
+              '关键词': row.term,
+              '日搜索量': row.search_volume,
+              '竞争度': row.competition,
+              '蓝海分': score,
+              // 我保留了这两个字段，作为“隐藏福利”，Excel里可以看到
+              'PC流量': row.pc_volume,
+              '移动流量': row.mobile_volume
+            }
+          })
+
+          finalRows = finalRows.concat(formattedBatch)
           from += BATCH_SIZE
           if (data.length < BATCH_SIZE) hasMore = false
         } else {
@@ -110,23 +129,26 @@ export default function StepDashboard({ projectId, onNext }: { projectId: string
       }
 
       setExportProgress('正在生成 CSV 文件...')
-      const csv = Papa.unparse(allRows)
+      
+      // 3. 生成 CSV
+      const csv = Papa.unparse(finalRows)
       const blobWithBOM = new Blob(["\uFEFF"+csv], {type: 'text/csv;charset=utf-8;'});
       const link = document.createElement('a')
       link.href = URL.createObjectURL(blobWithBOM)
-      link.download = `最终选品结果_${allRows.length}条.csv`
+      link.download = `NicheMiner_选品结果_${finalRows.length}条.csv`
       link.click()
 
       setExportProgress('下载完成！')
 
     } catch (err: any) {
+      console.error(err)
       alert('导出中断：' + err.message)
     } finally {
       setExporting(false)
     }
   }
 
-  // === 修复点 3: Tooltip 类型改为 any，解决 Recharts 类型冲突 ===
+  // Tooltip 类型修复
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
@@ -156,7 +178,7 @@ export default function StepDashboard({ projectId, onNext }: { projectId: string
         <button 
           onClick={handleExport}
           disabled={exporting}
-          className="flex items-center bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-blue-500/50"
         >
           {exporting ? (
             <>
@@ -166,7 +188,7 @@ export default function StepDashboard({ projectId, onNext }: { projectId: string
           ) : (
             <>
               <Download className="w-5 h-5 mr-2" />
-              导出全部数据 (Excel)
+              导出暴利词表 (Excel)
             </>
           )}
         </button>
@@ -175,11 +197,11 @@ export default function StepDashboard({ projectId, onNext }: { projectId: string
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* 左侧：蓝海榜单 */}
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[500px]">
+        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[600px]">
           <div className="p-5 border-b bg-slate-50 flex justify-between items-center">
             <h3 className="font-bold text-slate-800 flex items-center">
               <DollarSign className="w-5 h-5 mr-2 text-yellow-500" />
-              Top 100 蓝海暴利词 (按性价比排序)
+              Top 100 蓝海暴利词 (按性价比)
             </h3>
             <span className="text-xs text-slate-400">性价比 = 流量 / (竞争+1)</span>
           </div>
@@ -219,14 +241,14 @@ export default function StepDashboard({ projectId, onNext }: { projectId: string
         </div>
 
         {/* 右侧：分布图 */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5 flex flex-col h-[500px]">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5 flex flex-col h-[600px]">
           <h3 className="font-bold text-slate-800 mb-2 flex items-center">
             <TrendingUp className="w-5 h-5 mr-2 text-purple-500" />
             机会分布图
           </h3>
           <p className="text-xs text-slate-400 mb-4">
-            把鼠标移到圆点上，查看具体关键词。<br/>
-            越靠左上角，机会越大。
+            这里展示的是 Top 300 样本。<br/>
+            鼠标悬停查看详情。
           </p>
           
           <div className="flex-1 w-full min-h-0">
