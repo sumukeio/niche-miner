@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, mkdir, readdir, unlink } from 'fs/promises'
 import { join } from 'path'
-import { spawn } from 'child_process'
+import { spawn, ChildProcess } from 'child_process'
 import { EventEmitter } from 'events'
 
 // 注意：xlsx需要单独安装
@@ -12,9 +12,22 @@ try {
   console.warn('xlsx未安装，将使用简化模式处理结果')
 }
 
+// 类型定义
+interface AdResult {
+  keyword: string
+  ad_titles: string[]
+  ad_links: string[]
+}
+
+interface GroupedAdResult {
+  keyword: string
+  ad_titles: string[]
+  ad_links: string[]
+}
+
 // 全局存储：当前运行的任务
 const runningTasks = new Map<string, {
-  process: any
+  process: ChildProcess | null
   mode: 'pc' | 'mobile'
   results: any[]
   logs: string[]
@@ -70,10 +83,11 @@ export async function POST(request: NextRequest) {
     })
 
     // 启动验证流程（异步，不阻塞响应）
-    startValidation(taskId, filePath, proxyList, mode, emitter).catch(err => {
+    startValidation(taskId, filePath, proxyList, mode, emitter).catch((err: unknown) => {
+      const errorMessage = err instanceof Error ? err.message : '未知错误'
       emitter.emit('data', JSON.stringify({
         type: 'error',
-        message: `验证失败: ${err.message}`
+        message: `验证失败: ${errorMessage}`
       }))
     })
 
@@ -104,7 +118,7 @@ async function startValidation(
   
   // 使用5个IP轮换（如果配置了代理），否则使用5次无代理运行
   const proxiesToUse = proxyList.length > 0 ? proxyList : [null, null, null, null, null]
-  const allResults: Map<string, any> = new Map() // 用于去重，key是关键词+链接组合
+  const allResults = new Map<string, AdResult>() // 用于去重，key是关键词+链接组合
 
   emitter.emit('data', JSON.stringify({
     type: 'log',
@@ -263,11 +277,12 @@ async function startValidation(
             }))
             
             resolve()
-          } catch (err: any) {
+          } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : '未知错误'
             emitter.emit('data', JSON.stringify({
               type: 'log',
               level: 'warning',
-              message: `读取结果文件失败: ${err.message}`
+              message: `读取结果文件失败: ${errorMessage}`
             }))
             resolve() // 继续下一个代理
           }
@@ -288,9 +303,9 @@ async function startValidation(
 
   // 所有代理运行完成，整理结果
   // 按关键词分组
-  const groupedResults = new Map<string, { keyword: string, ad_titles: string[], ad_links: string[] }>()
+  const groupedResults = new Map<string, GroupedAdResult>()
   
-  allResults.forEach((value) => {
+  allResults.forEach((value: AdResult) => {
     if (!groupedResults.has(value.keyword)) {
       groupedResults.set(value.keyword, {
         keyword: value.keyword,
@@ -299,7 +314,7 @@ async function startValidation(
       })
     }
     const group = groupedResults.get(value.keyword)!
-    value.ad_links.forEach((link, idx) => {
+    value.ad_links.forEach((link: string, idx: number) => {
       if (!group.ad_links.includes(link)) {
         group.ad_links.push(link)
         group.ad_titles.push(value.ad_titles[idx] || link)
