@@ -17,6 +17,10 @@
 /.next/
 /out/
 
+# 临时文件
+/temp/
+*.xlsx.bak
+
 # production
 /build
 
