@@ -21,6 +21,19 @@
 /temp/
 *.xlsx.bak
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Python 认证文件
+auth_taobao.json
+
+# 截图（可选：如果不想提交截图，取消注释）
+# scripts/screenshots/*.png
+
 # production
 /build
 

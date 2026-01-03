@@ -113,7 +113,7 @@ async function startValidation(
   const task = runningTasks.get(taskId)
   if (!task) return
 
-  const scriptPath = join(process.cwd(), 'baidu_ad_validator.py')
+        const scriptPath = join(process.cwd(), 'scripts', 'baidu_ad_validator.py')
   const tempDir = join(process.cwd(), 'temp')
   
   // 使用5个IP轮换（如果配置了代理），否则使用5次无代理运行

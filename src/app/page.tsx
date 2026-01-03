@@ -15,7 +15,7 @@ export default function LandingPage() {
               </div>
               <span className="text-xl font-bold text-gray-900">NicheMiner</span>
             </div>
-            <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4">
               <Link
                 href="/login"
                 className="text-gray-700 hover:text-gray-900 font-medium transition-colors"
@@ -28,7 +28,7 @@ export default function LandingPage() {
               >
                 注册
               </Link>
-            </div>
+          </div>
           </div>
         </div>
       </header>

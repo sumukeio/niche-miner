@@ -1,4 +1,4 @@
-# Baidu Ad Validator - Dependencies
+# NicheMiner Python Dependencies
 # Install command: pip install -r requirements.txt
 
 # Browser automation
@@ -7,3 +7,7 @@ playwright>=1.40.0
 # Data processing
 pandas>=2.0.0
 openpyxl>=3.1.0
+
+# Database (for Taobao Miner)
+supabase>=2.0.0
+python-dotenv>=1.0.0
