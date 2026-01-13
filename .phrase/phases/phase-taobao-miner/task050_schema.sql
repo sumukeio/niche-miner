@@ -41,3 +41,6 @@ WHERE taobao_sales IS NOT NULL;
 -- ORDER BY ordinal_position;
 
 
+
+
+

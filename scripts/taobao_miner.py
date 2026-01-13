@@ -100,17 +100,61 @@ class TaobaoMiner:
         
         logger.info(f"初始化淘宝挖掘器 (User-Agent: {self.user_agent[:50]}...)")
     
-    def wait_random(self, min_seconds: float = 2.0, max_seconds: float = 5.0):
+    def wait_random(self, min_seconds: float = 3.0, max_seconds: float = 8.0):
         """
-        随机等待，模拟真人操作
+        随机等待，模拟真人操作（增加延迟以降低被检测风险）
         
         Args:
-            min_seconds: 最小等待时间（秒）
-            max_seconds: 最大等待时间（秒）
+            min_seconds: 最小等待时间（秒，默认3秒）
+            max_seconds: 最大等待时间（秒，默认8秒）
         """
         wait_time = random.uniform(min_seconds, max_seconds)
         logger.debug(f"随机等待 {wait_time:.2f} 秒...")
         time.sleep(wait_time)
+    
+    def wait_long_random(self, min_seconds: float = 5.0, max_seconds: float = 15.0):
+        """
+        长时间随机等待，用于关键词之间的休息（降低被检测风险）
+        
+        Args:
+            min_seconds: 最小等待时间（秒，默认5秒）
+            max_seconds: 最大等待时间（秒，默认15秒）
+        """
+        wait_time = random.uniform(min_seconds, max_seconds)
+        logger.info(f"⏸️ 休息 {wait_time:.1f} 秒（降低被检测风险）...")
+        time.sleep(wait_time)
+    
+    def simulate_human_behavior(self, page: Page):
+        """
+        模拟人类行为：随机鼠标移动、偶尔停留等
+        
+        Args:
+            page: Playwright Page 对象
+        """
+        try:
+            # 随机决定是否执行人类行为（70%概率）
+            if random.random() < 0.7:
+                # 随机鼠标移动（模拟查看页面）
+                try:
+                    # 移动到随机位置
+                    x = random.randint(100, 800)
+                    y = random.randint(100, 600)
+                    page.mouse.move(x, y)
+                    # 随机停留一小段时间
+                    time.sleep(random.uniform(0.5, 1.5))
+                except:
+                    pass
+            
+            # 偶尔随机滚动（模拟浏览）
+            if random.random() < 0.3:  # 30%概率
+                try:
+                    scroll_y = random.randint(100, 500)
+                    page.evaluate(f"window.scrollBy(0, {scroll_y})")
+                    time.sleep(random.uniform(0.5, 1.0))
+                except:
+                    pass
+        except Exception as e:
+            logger.debug(f"模拟人类行为失败: {str(e)}")
     
     def retry_with_backoff(self, func, max_retries: int = 3, base_delay: float = 1.0, 
                           backoff_factor: float = 2.0, *args, **kwargs):
@@ -717,17 +761,27 @@ class TaobaoMiner:
         logger.info(f"搜索关键词: {keyword}")
         
         # 访问淘宝搜索页（增加超时时间）
+        # 在访问前添加随机延迟，降低请求频率
+        pre_delay = random.uniform(2.0, 5.0)
+        logger.debug(f"访问前等待 {pre_delay:.1f} 秒...")
+        time.sleep(pre_delay)
+        
         search_url = f"https://s.taobao.com/search?q={keyword}"
         try:
             page.goto(search_url, timeout=60000, wait_until='domcontentloaded')
             # 等待网络空闲，但设置较长的超时
             page.wait_for_load_state('networkidle', timeout=30000)
+            # 访问后等待，模拟用户查看页面
+            post_delay = random.uniform(2.0, 4.0)
+            time.sleep(post_delay)
         except PlaywrightTimeoutError as e:
             logger.warning(f"页面加载可能未完全完成，继续尝试: {str(e)[:100]}")
             # 即使超时也继续，可能网络慢但页面基本加载了
         
-        # 等待页面稳定
-        self.wait_random(2.0, 3.0)
+        # 等待页面稳定（增加延迟）
+        self.wait_random(3.0, 6.0)
+        # 模拟人类行为
+        self.simulate_human_behavior(page)
         
         # 检查是否被重定向到登录页或错误页
         current_url = page.url
@@ -740,17 +794,26 @@ class TaobaoMiner:
             logger.warning("验证码处理失败或超时，但继续尝试...")
         
         # 滚动页面以触发懒加载（淘宝搜索结果可能是懒加载的）
-        logger.debug("滚动页面以触发商品懒加载...")
+        # 使用更慢、更随机的滚动，模拟真实用户浏览
+        logger.debug("滚动页面以触发商品懒加载（模拟真实用户浏览）...")
         try:
-            # 先滚动到底部
-            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            page.wait_for_timeout(2000)
-            # 再滚动到中间
-            page.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
-            page.wait_for_timeout(2000)
-            # 滚动回顶部
-            page.evaluate("window.scrollTo(0, 0)")
-            page.wait_for_timeout(2000)
+            # 模拟真实用户浏览：慢速、随机滚动
+            scroll_positions = [0.2, 0.4, 0.6, 0.8, 1.0]
+            for pos in scroll_positions:
+                # 随机决定是否滚动（80%概率）
+                if random.random() < 0.8:
+                    page.evaluate(f"window.scrollTo(0, document.body.scrollHeight * {pos})")
+                    # 随机等待（模拟用户查看内容）
+                    wait_time = random.uniform(1.5, 3.5)
+                    page.wait_for_timeout(int(wait_time * 1000))
+                    # 偶尔模拟鼠标移动
+                    if random.random() < 0.4:
+                        self.simulate_human_behavior(page)
+            
+            # 滚动回顶部（模拟用户重新查看）
+            if random.random() < 0.6:  # 60%概率
+                page.evaluate("window.scrollTo(0, 0)")
+                page.wait_for_timeout(random.randint(1500, 3000))
         except Exception as e:
             logger.debug(f"滚动操作失败: {str(e)}")
         
@@ -925,16 +988,27 @@ class TaobaoMiner:
             logger.info("🔄 滚动页面以触发商品懒加载...")
             try:
                 # 更频繁的分段滚动，确保所有商品都加载
-                max_scrolls = 5  # 最多滚动5次
+                # 但使用更慢、更随机的滚动，模拟真实用户
+                max_scrolls = 4  # 减少滚动次数（降低频率）
                 last_count = 0
                 stable_count = 0
                 
                 for scroll_round in range(max_scrolls):
-                    # 滚动到不同位置
+                    # 滚动到不同位置（随机顺序）
                     scroll_positions = [0.2, 0.4, 0.6, 0.8, 1.0]
+                    random.shuffle(scroll_positions)  # 随机顺序
+                    
                     for pos in scroll_positions:
-                        page.evaluate(f"window.scrollTo(0, document.body.scrollHeight * {pos})")
-                        page.wait_for_timeout(800)  # 减少等待时间
+                        # 随机决定是否滚动（90%概率）
+                        if random.random() < 0.9:
+                            page.evaluate(f"window.scrollTo(0, document.body.scrollHeight * {pos})")
+                            # 增加等待时间（模拟用户查看）
+                            wait_time = random.uniform(1.2, 2.5)
+                            page.wait_for_timeout(int(wait_time * 1000))
+                            
+                            # 偶尔模拟人类行为
+                            if random.random() < 0.3:
+                                self.simulate_human_behavior(page)
                     
                     # 滚动回顶部
                     page.evaluate("window.scrollTo(0, 0)")
@@ -999,12 +1073,12 @@ class TaobaoMiner:
                     logger.debug(f"选择器 {selector} 查询失败: {str(e)}")
                     continue
             
-            # 如果都没找到，尝试更通用的方法
+            # 如果都没找到，尝试更通用的方法和调试
             if not product_elements or len(product_elements) == 0:
-                logger.warning("⚠️ 标准选择器未找到商品，尝试更通用的方法...")
+                logger.warning("⚠️ 标准选择器未找到商品，尝试更通用的方法并分析页面结构...")
                 try:
-                    # 使用JavaScript直接查询，更快速
-                    element_count = page.evaluate("""
+                    # 使用JavaScript分析页面结构，找出实际的商品容器
+                    analysis_result = page.evaluate("""
                         () => {
                             // 尝试多种选择器
                             const selectors = [
@@ -1013,27 +1087,199 @@ class TaobaoMiner:
                                 '[data-category="auctions"]',
                                 '.m-itemlist .items .item',
                                 '.item',
+                                '[class*="Item"]',
+                                '[class*="item"]',
+                                '.J_MouserOnverReq',
+                                '.ctx-box',
+                                '.itemWrapper',
                             ];
                             
+                            const results = {};
                             for (const sel of selectors) {
                                 const items = document.querySelectorAll(sel);
                                 if (items.length > 0) {
-                                    return items.length;
+                                    results[sel] = items.length;
+                                    // 检查第一个元素的结构
+                                    if (items.length > 0 && !results.firstItemStructure) {
+                                        const firstItem = items[0];
+                                        results.firstItemStructure = {
+                                            className: firstItem.className,
+                                            tagName: firstItem.tagName,
+                                            hasTitle: !!firstItem.querySelector('.title, [class*="title"], a[title]'),
+                                            hasPrice: !!firstItem.querySelector('.price, [class*="price"]'),
+                                            hasLink: !!firstItem.querySelector('a[href*="item"]'),
+                                            innerHTML: firstItem.innerHTML.substring(0, 200)
+                                        };
+                                    }
                                 }
                             }
-                            return 0;
+                            
+                            // 尝试查找所有包含商品链接的元素
+                            const allLinks = document.querySelectorAll('a[href*="item.taobao.com"], a[href*="detail.tmall.com"]');
+                            if (allLinks.length > 0) {
+                                results.productLinks = allLinks.length;
+                                // 找最近的父容器
+                                const firstLink = allLinks[0];
+                                let parent = firstLink.parentElement;
+                                let depth = 0;
+                                while (parent && depth < 5) {
+                                    if (parent.className) {
+                                        results.suggestedSelector = `.${parent.className.split(' ').join('.')} a[href*="item"]`;
+                                        break;
+                                    }
+                                    parent = parent.parentElement;
+                                    depth++;
+                                }
+                            }
+                            
+                            return results;
                         }
                     """)
                     
-                    if element_count > 0:
-                        # 如果找到了，使用最通用的选择器获取
-                        product_elements = page.query_selector_all('.items .item, .item[data-category="auctions"], [data-category="auctions"]')
-                        used_selector = '通用查询'
-                        logger.info(f"✅ 使用通用方法找到 {len(product_elements)} 个商品元素")
-                    else:
-                        logger.warning("⚠️ 通用方法也未找到商品元素")
+                    logger.info(f"📊 页面结构分析结果: {analysis_result}")
+                    
+                    # 根据分析结果选择最佳选择器
+                    # 首先尝试分析结果中匹配的选择器
+                    best_selector = None
+                    best_count = 0
+                    for selector, count in analysis_result.items():
+                        if isinstance(count, int) and count > 0 and selector != 'productLinks':
+                            if count > best_count:
+                                best_count = count
+                                best_selector = selector
+                    
+                    if best_selector:
+                        try:
+                            test_elements = page.query_selector_all(best_selector)
+                            if test_elements and len(test_elements) > 0:
+                                product_elements = test_elements
+                                used_selector = best_selector
+                                logger.info(f"✅ 使用分析结果中的最佳选择器 '{best_selector}' 找到 {len(test_elements)} 个商品元素")
+                        except Exception as e:
+                            logger.debug(f"使用最佳选择器失败: {str(e)}")
+                    
+                    # 如果还是没找到，尝试通过商品链接来定位商品容器
+                    if (not product_elements or len(product_elements) == 0) and analysis_result.get('productLinks', 0) > 0:
+                        logger.info(f"✅ 找到 {analysis_result['productLinks']} 个商品链接，尝试通过链接定位商品容器")
+                        
+                        # 通过JavaScript找到每个商品链接的父容器
+                        product_containers = page.evaluate("""
+                            () => {
+                                const links = document.querySelectorAll('a[href*="item.taobao.com"], a[href*="detail.tmall.com"]');
+                                const containers = [];
+                                const seenIds = new Set();
+                                
+                                for (const link of links) {
+                                    // 向上查找商品容器
+                                    let parent = link.parentElement;
+                                    let depth = 0;
+                                    let container = null;
+                                    
+                                    while (parent && depth < 10) {
+                                        // 检查是否是商品容器
+                                        const classList = parent.className || '';
+                                        const hasItemClass = /item|Item|ctx|goods|product/i.test(classList);
+                                        const hasDataCategory = parent.hasAttribute('data-category');
+                                        
+                                        if (hasItemClass || hasDataCategory || parent.tagName === 'LI' || parent.tagName === 'DIV') {
+                                            // 检查是否包含商品特征（标题、价格等）
+                                            const hasTitle = parent.querySelector('.title, [class*="title"], a[title]');
+                                            const hasPrice = parent.querySelector('.price, [class*="price"]');
+                                            
+                                            if (hasTitle || hasPrice || hasItemClass) {
+                                                container = parent;
+                                                break;
+                                            }
+                                        }
+                                        parent = parent.parentElement;
+                                        depth++;
+                                    }
+                                    
+                                    if (container && !seenIds.has(container)) {
+                                        seenIds.add(container);
+                                        containers.push(container);
+                                    }
+                                    
+                                    if (containers.length >= 48) break;
+                                }
+                                
+                                return containers.length;
+                            }
+                        """)
+                        
+                        if product_containers > 0:
+                            logger.info(f"✅ 通过商品链接定位到 {product_containers} 个商品容器")
+                            # 使用更通用的选择器来获取这些容器
+                            # 由于JavaScript返回的元素无法直接使用，我们需要通过其他方式获取
+                            # 尝试使用更宽泛的选择器
+                            fallback_selectors = [
+                                'div[class*="item"]',
+                                'li[class*="item"]',
+                                'div[class*="Item"]',
+                                'li[class*="Item"]',
+                                '[data-category]',
+                            ]
+                            
+                            for fb_selector in fallback_selectors:
+                                try:
+                                    test_elements = page.query_selector_all(fb_selector)
+                                    # 过滤：只保留包含商品链接的元素
+                                    filtered = []
+                                    for el in test_elements:
+                                        try:
+                                            link = el.query_selector('a[href*="item.taobao.com"], a[href*="detail.tmall.com"]')
+                                            if link:
+                                                filtered.append(el)
+                                        except:
+                                            continue
+                                    
+                                    if len(filtered) > 0:
+                                        product_elements = filtered[:48]
+                                        used_selector = f'{fb_selector} (过滤后)'
+                                        logger.info(f"✅ 使用选择器 '{fb_selector}' 找到 {len(product_elements)} 个商品容器（包含商品链接）")
+                                        break
+                                except:
+                                    continue
+                    
+                    # 最后的备用方案：直接通过商品链接提取
+                    if (not product_elements or len(product_elements) == 0) and analysis_result.get('productLinks', 0) > 0:
+                        logger.info(f"💡 尝试通过商品链接直接提取（找到 {analysis_result['productLinks']} 个链接）")
+                        try:
+                            # 获取所有商品链接
+                            product_links = page.query_selector_all('a[href*="item.taobao.com"], a[href*="detail.tmall.com"]')
+                            if product_links:
+                                logger.info(f"✅ 找到 {len(product_links)} 个商品链接，将通过链接提取商品信息")
+                                # 使用链接本身作为起点，后续提取时会查找父容器
+                                product_elements = product_links[:48]
+                                used_selector = '商品链接（直接提取）'
+                        except Exception as e:
+                            logger.debug(f"通过链接提取失败: {str(e)}")
+                                
+                    if not product_elements or len(product_elements) == 0:
+                        logger.warning("⚠️ 所有方法都未找到商品元素")
+                        # 输出更详细的页面结构信息
+                        try:
+                            detailed_analysis = page.evaluate("""
+                                () => {
+                                    const result = {
+                                        totalLinks: document.querySelectorAll('a').length,
+                                        productLinks: document.querySelectorAll('a[href*="item"], a[href*="detail"]').length,
+                                        items: document.querySelectorAll('[class*="item"]').length,
+                                        divs: document.querySelectorAll('div').length,
+                                        bodyText: document.body.innerText.substring(0, 500),
+                                        bodyHTML: document.body.innerHTML.substring(0, 1000)
+                                    };
+                                    return result;
+                                }
+                            """)
+                            logger.info(f"📊 详细页面分析: 总链接={detailed_analysis.get('totalLinks', 0)}, 商品链接={detailed_analysis.get('productLinks', 0)}, 包含item的元素={detailed_analysis.get('items', 0)}, 总div数={detailed_analysis.get('divs', 0)}")
+                            logger.debug(f"页面文本预览: {detailed_analysis.get('bodyText', '')[:200]}")
+                        except:
+                            pass
                 except Exception as e:
-                    logger.debug(f"通用查询失败: {str(e)}")
+                    logger.error(f"❌ 页面结构分析失败: {str(e)}")
+                    import traceback
+                    logger.debug(traceback.format_exc())
             
             # 提取商品元素（淘宝搜索结果的商品项）
             # product_elements 应该已经在上面获取到了
@@ -1101,6 +1347,35 @@ class TaobaoMiner:
                 try:
                     product_info = {}
                     
+                    # 如果item是链接，需要找到它的父容器来提取信息
+                    actual_item = item
+                    if item.tag_name().lower() == 'a':
+                        # 如果是链接，尝试找到父容器
+                        try:
+                            # 向上查找包含商品信息的父容器
+                            parent_container = item.evaluate("""
+                                el => {
+                                    let parent = el.parentElement;
+                                    let depth = 0;
+                                    while (parent && depth < 10) {
+                                        const hasTitle = parent.querySelector('.title, [class*="title"], a[title]');
+                                        const hasPrice = parent.querySelector('.price, [class*="price"]');
+                                        const classList = parent.className || '';
+                                        if ((hasTitle || hasPrice) && /item|Item|ctx|goods/i.test(classList)) {
+                                            return parent;
+                                        }
+                                        parent = parent.parentElement;
+                                        depth++;
+                                    }
+                                    return el.parentElement || el;
+                                }
+                            """)
+                            # 由于evaluate返回的是序列化的对象，我们需要重新查询
+                            # 简化：直接使用链接本身，在提取时查找父元素
+                            actual_item = item
+                        except:
+                            actual_item = item
+                    
                     # 提取标题 - 扩展更多选择器
                     title_selectors = [
                         '.title a',  # 标题链接
@@ -1120,6 +1395,28 @@ class TaobaoMiner:
                     title = None
                     title_link = None
                     title_extraction_method = None
+                    
+                    # 如果item是链接，先从链接本身提取
+                    if item.tag_name().lower() == 'a':
+                        try:
+                            link_title = item.get_attribute('title')
+                            link_text = item.inner_text()
+                            link_href = item.get_attribute('href')
+                            
+                            if link_title:
+                                title = link_title.strip()
+                                title_link = link_href
+                                title_extraction_method = '链接title属性'
+                            elif link_text and len(link_text.strip()) > 5:
+                                title = link_text.strip()
+                                title_link = link_href
+                                title_extraction_method = '链接文本'
+                            
+                            # 如果链接有href，直接使用
+                            if link_href and ('item.taobao.com' in link_href or 'detail.tmall.com' in link_href):
+                                product_info['url'] = link_href
+                        except:
+                            pass
                     
                     # 方法1: 使用标准选择器
                     for title_sel in title_selectors:
@@ -1558,8 +1855,11 @@ class TaobaoMiner:
                         
                         # 如果不是最后一页，尝试翻页
                         if page_num < max_pages:
-                            # 随机等待再翻页
-                            self.wait_random(2.0, 4.0)
+                            # 随机等待再翻页（增加延迟）
+                            logger.info("⏸️ 翻页前等待（降低被检测风险）...")
+                            self.wait_random(5.0, 12.0)  # 5-12秒随机等待
+                            # 模拟人类行为
+                            self.simulate_human_behavior(page)
                             
                             if not self.go_to_next_page(page):
                                 logger.info(f"无法翻页，停止抓取种子词: {seed_word}")
@@ -1567,10 +1867,16 @@ class TaobaoMiner:
                         else:
                             logger.info(f"已完成 {max_pages} 页抓取，继续下一个种子词")
                     
-                    # 每个种子词之间等待
+                    # 每个种子词之间等待（增加延迟，降低被检测风险）
                     if seed_idx < len(seed_words):
-                        logger.info("等待后处理下一个种子词...")
-                        self.wait_random(3.0, 5.0)
+                        logger.info("⏸️ 等待后处理下一个种子词（降低被检测风险）...")
+                        # 使用更长的随机等待时间
+                        self.wait_long_random(8.0, 20.0)  # 8-20秒随机等待
+                        # 偶尔添加额外的随机暂停（模拟用户休息）
+                        if random.random() < 0.3:  # 30%概率额外休息
+                            extra_rest = random.uniform(5.0, 15.0)
+                            logger.info(f"💤 额外休息 {extra_rest:.1f} 秒（模拟用户行为）...")
+                            time.sleep(extra_rest)
                 
                 logger.info("=" * 60)
                 logger.info(f"✅ 抓取完成！共获取 {len(all_products)} 个商品")

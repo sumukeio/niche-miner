@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { Plus, FolderOpen, Calendar, Trash2, ArrowRight, Loader2, CheckCircle2, Circle, Upload, ShoppingBag, CheckSquare, Square, X } from 'lucide-react'
+import { Plus, FolderOpen, Calendar, Trash2, ArrowRight, Loader2, CheckCircle2, Circle, Upload, ShoppingBag, CheckSquare, Square, X, FileSpreadsheet } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { importFileToProject } from '@/lib/fileImportUtils'
@@ -474,8 +474,8 @@ export default function DashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto p-6">
-        {/* 创建项目区域 - 两个并排的大方块 */}
-        <div className="mb-8 grid md:grid-cols-2 gap-6">
+        {/* 创建项目区域 - 三个并排的大方块 */}
+        <div className="mb-8 grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* 左边：导入长尾词 */}
           <label className="block">
             <input
@@ -516,7 +516,7 @@ export default function DashboardPage() {
             </div>
           </label>
 
-          {/* 右边：去淘宝挖掘 */}
+          {/* 中间：去淘宝挖掘 */}
           <Link
             href="/taobao-miner"
             className="block"
@@ -530,6 +530,26 @@ export default function DashboardPage() {
                   <h3 className="text-2xl font-bold text-white mb-2">去淘宝挖掘</h3>
                   <p className="text-orange-100">
                     通过种子词挖掘淘宝长尾需求
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          {/* 右边：Excel 智能筛选 */}
+          <Link
+            href="/tools/excel-filter"
+            className="block"
+          >
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl p-12 text-center cursor-pointer hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl h-full flex items-center justify-center min-h-[200px]">
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                  <FileSpreadsheet className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-white mb-2">Excel 智能筛选</h3>
+                  <p className="text-green-100">
+                    按规则筛选提取 Excel 关键词
                   </p>
                 </div>
               </div>
